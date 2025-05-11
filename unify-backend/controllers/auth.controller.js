@@ -1,6 +1,6 @@
 import User from "../models/User.js";
 import jwt from "jsonwebtoken";
-// import cookie from "cookie-parser";
+import {upsertUnifyUser} from "../lib/stream.js";
 
 export async function signup(req, res) {
   const {email, password, fullName} = req.body;
@@ -32,7 +32,21 @@ export async function signup(req, res) {
         fullName,
         password,
         profilePic:randomAvatar
-    })
+    });
+
+    //upsert user to Unify
+    try {
+        await upsertUnifyUser({
+            id:newUser._id.toString(),
+            name:newUser.fullName,
+            image:newUser.profilePic || ""
+        });
+        console.log("unfiy user created successfully for user", newUser.fullName);
+
+    } catch (error) {
+        console.log("Error in creating unify user", error);
+    }
+
     // Generate JWT token
     const token = jwt.sign({userId:newUser._id}, process.env.JWT_SECRET, {expiresIn: "30d"});
 
@@ -103,3 +117,47 @@ export async function logout(req, res) {
     }
 }
 
+export async function onboarding(req,res){
+    try {
+        const userId = req.user._id;
+        const {fullName,bio,learningLanguage,nativeLanguage,location} = req.body;
+        if(!fullName || !bio|| !learningLanguage || !nativeLanguage || !location){
+            return res.status(400).json({
+                message:"All fields are required",
+                missingFields:[
+                    !fullName && "fullName",
+                    !bio && "bio",
+                    !learningLanguage && "learningLanguage",
+                    !nativeLanguage && "nativeLanguage",
+                    !location && "location"
+                ].filter(Boolean)
+            });
+        }
+        const updatedUser = await User.findByIdAndUpdate(userId,{
+            ...req.body,
+            isOnboarded:true
+        },{new:true});
+
+        if(!updatedUser){
+            return res.status(404).json({message:"User not found"})
+        }
+        
+        //upsert user to Unify
+        try {
+            const unifyUser = await upsertUnifyUser({
+                id:updatedUser._id.toString(),
+                name:updatedUser.fullName,
+                image:updatedUser.profilePic || ""
+            })
+            console.log("unfiy user updated successfully for user", updatedUser.fullName);
+        } catch (error) {
+            console.log("Error in creating unify user", error);
+        }
+
+        res.status(200).json({success:true, message:"User onboarded successfully", user:updatedUser})
+
+    } catch (error) {
+        console.log("Error in onboarding controller", error);
+        res.status(500).json({ success:false,message: "Internal server error" });
+    }
+}
