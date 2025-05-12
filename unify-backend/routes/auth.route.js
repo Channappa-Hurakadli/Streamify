@@ -24,6 +24,9 @@ router .get("/me",protectRoute,(req,res)=>{
     })
 })
 
+//todo : add forgot password and reset password routes
+//todo : add google auth routes
+
 
 
 export default router;
