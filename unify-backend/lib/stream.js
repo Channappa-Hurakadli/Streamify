@@ -22,5 +22,11 @@ export const upsertUnifyUser = async (userData)=>{
 }
 
 export const generateUnifyToken = (userId) => {
-    //later
-}
+  try {
+    // ensure userId is a string
+    const userIdStr = userId.toString();
+    return unifyClient.createToken(userIdStr);
+  } catch (error) {
+    console.error("Error generating Stream token:", error);
+  }
+};
